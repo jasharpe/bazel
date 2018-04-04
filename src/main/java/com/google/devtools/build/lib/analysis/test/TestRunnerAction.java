@@ -506,7 +506,7 @@ public class TestRunnerAction extends AbstractAction implements NotifyOnActionCa
 
     if (!isEnableRunfiles()) {
       // If runfiles are disabled, tell remote-runtest.sh/local-runtest.sh about that.
-      env.put("RUNFILES_MANIFEST_ONLY", "1");
+      //env.put("RUNFILES_MANIFEST_ONLY", "1");
     }
 
     if (isCoverageMode()) {

@@ -81,8 +81,10 @@ class BinaryLauncherBase {
   // A map to store all the launch information.
   const LaunchDataParser::LaunchInfo& launch_info;
 
+  bool runfiles_manifest_only;
+
   // Absolute path to the runfiles manifest file.
-  const std::string manifest_file;
+  std::string manifest_file;
 
   // The commandline arguments recieved.
   // The first argument is the path of this launcher itself.

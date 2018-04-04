@@ -118,6 +118,7 @@ else
     if is_absolute "$1" ; then
       echo "$1"
     else
+      #echo "$TEST_SRCDIR/$1"
       echo "$(grep "^$1 " "${RUNFILES_MANIFEST_FILE}" | sed 's/[^ ]* //')"
     fi
   }
@@ -228,6 +229,7 @@ tail -fq --pid $pid -s 0.001 /dev/null &> /dev/null || has_tail=false
 if [ "$has_tail" == true ] && [  -z "$no_echo" ]; then
   touch "${XML_OUTPUT_FILE}.log"
   if [ -z "$COVERAGE_DIR" ]; then
+	  echo "TEST_PATH: $TEST_PATH"
     ("${TEST_PATH}" "$@" &>"${XML_OUTPUT_FILE}.log") &
     pid=$!
   else

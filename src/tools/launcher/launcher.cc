@@ -36,12 +36,17 @@ using std::vector;
 BinaryLauncherBase::BinaryLauncherBase(
     const LaunchDataParser::LaunchInfo& _launch_info, int argc, char* argv[])
     : launch_info(_launch_info),
-      manifest_file(FindManifestFile(argv[0])),
       workspace_name(GetLaunchInfoByKey(WORKSPACE_NAME)) {
   for (int i = 0; i < argc; i++) {
     this->commandline_arguments.push_back(argv[i]);
   }
-  ParseManifestFile(&this->manifest_file_map, this->manifest_file);
+  string runfiles_manifest_only_str;
+  GetEnv("RUNFILES_MANIFEST_ONLY", &runfiles_manifest_only_str);
+  runfiles_manifest_only = runfiles_manifest_only_str == "1";
+  if (runfiles_manifest_only) {
+    manifest_file = FindManifestFile(argv[0]);
+    ParseManifestFile(&this->manifest_file_map, this->manifest_file);
+  }
 }
 
 static bool FindManifestFileImpl(const char* argv0, string* result) {
@@ -117,6 +122,9 @@ void BinaryLauncherBase::ParseManifestFile(ManifestFileMap* manifest_file_map,
 
 string BinaryLauncherBase::Rlocation(const string& path,
                                      bool need_workspace_name) const {
+  if (runfiles_manifest_only) {
+    return path;
+  }
   string query_path = path;
   if (need_workspace_name) {
     query_path = this->workspace_name + "/" + path;
