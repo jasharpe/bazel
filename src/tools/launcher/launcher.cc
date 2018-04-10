@@ -33,15 +33,30 @@ using std::string;
 using std::unordered_map;
 using std::vector;
 
+static std::string GetRunfilesDir() {
+  string runfiles_dir;
+  GetEnv("RUNFILES_DIR", &runfiles_dir);
+  return runfiles_dir;
+}
+
 BinaryLauncherBase::BinaryLauncherBase(
     const LaunchDataParser::LaunchInfo& _launch_info, int argc, char* argv[])
     : launch_info(_launch_info),
       manifest_file(FindManifestFile(argv[0])),
+      runfiles_dir(GetRunfilesDir()),
       workspace_name(GetLaunchInfoByKey(WORKSPACE_NAME)) {
   for (int i = 0; i < argc; i++) {
-    this->commandline_arguments.push_back(argv[i]);
+    commandline_arguments.push_back(argv[i]);
   }
-  ParseManifestFile(&this->manifest_file_map, this->manifest_file);
+  if (manifest_file != "") {
+    ParseManifestFile(&manifest_file_map, manifest_file);
+  } else if (runfiles_dir != "") {
+    // TODO: Should this branch be checking just for existence of argv[0]?
+    // TODO: Check whether this runfiles directory actually has anything in it.
+  } else {
+    die("Couldn't find runfiles directory with files or runfiles manifest "
+        "file.");
+  }
 }
 
 static bool FindManifestFileImpl(const char* argv0, string* result) {
@@ -80,7 +95,7 @@ static bool FindManifestFileImpl(const char* argv0, string* result) {
 string BinaryLauncherBase::FindManifestFile(const char* argv0) {
   string manifest_file;
   if (!FindManifestFileImpl(argv0, &manifest_file)) {
-    die("Couldn't find runfiles manifest file.");
+    return "";
   }
   // The path will be set as the RUNFILES_MANIFEST_FILE envvar and used by the
   // shell script, so let's convert backslashes to forward slashes.
@@ -115,6 +130,7 @@ void BinaryLauncherBase::ParseManifestFile(ManifestFileMap* manifest_file_map,
   }
 }
 
+// TODO: update this.
 string BinaryLauncherBase::Rlocation(const string& path,
                                      bool need_workspace_name) const {
   string query_path = path;
@@ -182,8 +198,10 @@ ExitCode BinaryLauncherBase::LaunchProcess(const string& executable,
   if (PrintLauncherCommandLine(executable, arguments)) {
     return 0;
   }
-  SetEnv("RUNFILES_MANIFEST_ONLY", "1");
-  SetEnv("RUNFILES_MANIFEST_FILE", manifest_file);
+  if (manifest_file != "") {
+    SetEnv("RUNFILES_MANIFEST_ONLY", "1");
+    SetEnv("RUNFILES_MANIFEST_FILE", manifest_file);
+  }
   CmdLine cmdline;
   CreateCommandLine(&cmdline, executable, arguments);
   PROCESS_INFORMATION processInfo = {0};

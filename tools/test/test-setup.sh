@@ -106,7 +106,9 @@ GUNIT_OUTPUT="xml:${XML_OUTPUT_FILE}"
 
 RUNFILES_MANIFEST_FILE="${TEST_SRCDIR}/MANIFEST"
 
+echo "RUNFILES_MANIFEST_ONLY: $RUNFILES_MANIFEST_ONLY"
 if [[ "${RUNFILES_MANIFEST_ONLY:-}" != "1" ]]; then
+  echo "rlocation 1"
   function rlocation() {
     if is_absolute "$1" ; then
       echo "$1"
@@ -115,6 +117,7 @@ if [[ "${RUNFILES_MANIFEST_ONLY:-}" != "1" ]]; then
     fi
   }
 else
+  echo "rlocation 2"
   function rlocation() {
     if is_absolute "$1" ; then
       echo "$1"

@@ -21,7 +21,9 @@ from src.test.py.bazel import test_base
 
 class WindowsRemoteTest(test_base.TestBase):
 
-  def _RunRemoteBazel(self, args, port, env_remove=None, env_add=None):
+  _worker_port = None
+
+  def _RunRemoteBazel(self, args, env_remove=None, env_add=None):
     return self.RunBazel(
         args + [
             '--spawn_strategy=remote',
@@ -29,8 +31,8 @@ class WindowsRemoteTest(test_base.TestBase):
             '--strategy=Closure=remote',
             '--genrule_strategy=remote',
             '--define=EXECUTOR=remote',
-            '--remote_executor=localhost:' + str(port),
-            '--remote_cache=localhost:' + str(port),
+            '--remote_executor=localhost:' + str(self._worker_port),
+            '--remote_cache=localhost:' + str(self._worker_port),
             '--experimental_strict_action_env=true',
             '--remote_timeout=3600',
             '--auth_enabled=false',
@@ -38,6 +40,14 @@ class WindowsRemoteTest(test_base.TestBase):
         ],
         env_remove=env_remove,
         env_add=env_add)
+
+  def setUp(self):
+    test_base.TestBase.setUp(self)
+    self._worker_port = self.StartRemoteWorker()
+
+  def tearDown(self):
+    test_base.TestBase.tearDown(self)
+    self.StopRemoteWorker()
 
   # Check that a binary built remotely is runnable locally. Among other things,
   # this means the runfiles manifest, which is not present remotely, must exist
@@ -63,25 +73,39 @@ class WindowsRemoteTest(test_base.TestBase):
     self.AssertExitCode(exit_code, 0, stderr)
     bazel_bin = stdout[0]
 
-    port = self.StartRemoteWorker()
+    # Build.
+    exit_code, stdout, stderr = self._RunRemoteBazel(['build', '//foo:foo'])
+    self.AssertExitCode(exit_code, 0, stderr, stdout)
 
-    try:
-      # Build.
-      exit_code, stdout, stderr = self._RunRemoteBazel(['build', '//foo:foo'],
-                                                       port)
-      print('\n'.join(stdout))
-      self.AssertExitCode(exit_code, 0, stderr)
+    # Run.
+    foo_bin = os.path.join(bazel_bin, 'foo', 'foo.exe')
+    self.assertTrue(os.path.exists(foo_bin))
+    exit_code, stdout, stderr = self.RunProgram([foo_bin])
+    self.AssertExitCode(exit_code, 0, stderr, stdout)
+    self.assertEqual(stdout, ['hello shell'])
 
-      # Run.
-      foo_bin = os.path.join(bazel_bin, 'foo', 'foo.exe')
-      self.assertTrue(os.path.exists(foo_bin))
-      exit_code, stdout, stderr = self.RunProgram([foo_bin])
-      self.AssertExitCode(exit_code, 0, stderr)
-      self.assertEqual(stdout, ['hello shell'])
-    finally:
-      # Always stop the worker so we obtain logs in case an assertion failed
-      # above.
-      self.StopRemoteWorker()
+  def testRemoteTest(self):
+    self.ScratchFile('WORKSPACE')
+    self.ScratchFile('foo/BUILD', [
+        'sh_test(',
+        '  name = "foo_test",',
+        '  srcs = ["foo_test.sh"],',
+        '  data = ["//bar:bar.txt"],',
+        ')',
+    ])
+    self.ScratchFile(
+        'foo/foo_test.sh', ['#!/bin/bash', 'echo hello test'], executable=True)
+    self.ScratchFile('bar/BUILD', ['exports_files(["bar.txt"])'])
+    self.ScratchFile('bar/bar.txt', ['hello'])
+
+    exit_code, stdout, stderr = self.RunBazel(['info', 'bazel-bin'])
+    self.AssertExitCode(exit_code, 0, stderr)
+    bazel_bin = stdout[0]
+
+    # Build.
+    exit_code, stdout, stderr = self._RunRemoteBazel(
+        ['test', '--test_output=all', '//foo:foo_test'])
+    self.AssertExitCode(exit_code, 0, stderr, stdout)
 
 
 if __name__ == '__main__':
