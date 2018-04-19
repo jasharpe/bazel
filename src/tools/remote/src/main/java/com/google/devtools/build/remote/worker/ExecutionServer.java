@@ -300,6 +300,11 @@ final class ExecutionServer extends ExecutionImplBase {
     return finalResult;
   }
 
+  // Returns true if the OS being run on is Windows (or some close approximation thereof).
+  private boolean isWindows() {
+    return File.separatorChar == '\\';
+  }
+
   private boolean wasTimeout(long timeoutMillis, long wallTimeMillis) {
     return timeoutMillis > 0 && wallTimeMillis > timeoutMillis;
   }
@@ -382,10 +387,14 @@ final class ExecutionServer extends ExecutionImplBase {
       newCommandLineElements.add("docker");
       newCommandLineElements.add("run");
 
-      long uid = getUid();
-      if (uid >= 0) {
-        newCommandLineElements.add("-u");
-        newCommandLineElements.add(Long.toString(uid));
+      // -u doesn't currently make sense for Windows:
+      // https://github.com/docker/for-win/issues/636#issuecomment-293653788
+      if (!isWindows()) {
+        long uid = getUid();
+        if (uid >= 0) {
+          newCommandLineElements.add("-u");
+          newCommandLineElements.add(Long.toString(uid));
+        }
       }
 
       String dockerPathString = pathString + "-docker";
