@@ -52,7 +52,7 @@ class WindowsRemoteTest(test_base.TestBase):
   # Check that a binary built remotely is runnable locally. Among other things,
   # this means the runfiles manifest, which is not present remotely, must exist
   # locally.
-  def testBinaryRunnableLocally(self):
+  def testBinaryRunsLocally(self):
     self.ScratchFile('WORKSPACE')
     self.ScratchFile('foo/BUILD', [
         'sh_binary(',
@@ -84,7 +84,7 @@ class WindowsRemoteTest(test_base.TestBase):
     self.AssertExitCode(exit_code, 0, stderr, stdout)
     self.assertEqual(stdout, ['hello shell'])
 
-  def testRemoteTest(self):
+  def testShTestRunsLocally(self):
     self.ScratchFile('WORKSPACE')
     self.ScratchFile('foo/BUILD', [
         'sh_test(',
@@ -104,8 +104,65 @@ class WindowsRemoteTest(test_base.TestBase):
 
     # Build.
     exit_code, stdout, stderr = self._RunRemoteBazel(
+        ['build', '--test_output=all', '//foo:foo_test'])
+    self.AssertExitCode(exit_code, 0, stderr, stdout)
+
+    # Test.
+    foo_test_bin = os.path.join(bazel_bin, 'foo', 'foo_test.exe')
+    self.assertTrue(os.path.exists(foo_test_bin))
+    exit_code, stdout, stderr = self.RunProgram([foo_test_bin])
+    self.AssertExitCode(exit_code, 0, stderr, stdout)
+
+  # Remotely, the runfiles manifest does not exist.
+  def testShTestRunsRemotely(self):
+    self.ScratchFile('WORKSPACE')
+    self.ScratchFile('foo/BUILD', [
+        'sh_test(',
+        '  name = "foo_test",',
+        '  srcs = ["foo_test.sh"],',
+        '  data = ["//bar:bar.txt"],',
+        ')',
+    ])
+    self.ScratchFile(
+        'foo/foo_test.sh', ['#!/bin/bash', 'echo hello test'], executable=True)
+    self.ScratchFile('bar/BUILD', ['exports_files(["bar.txt"])'])
+    self.ScratchFile('bar/bar.txt', ['hello'])
+
+    # Test.
+    exit_code, stdout, stderr = self._RunRemoteBazel(
         ['test', '--test_output=all', '//foo:foo_test'])
     self.AssertExitCode(exit_code, 0, stderr, stdout)
+
+  # The Java launcher uses Rlocation which has differing behavior for local and
+  # remote.
+  def testJavaTestRunsRemotely(self):
+    self.ScratchFile('WORKSPACE')
+    self.ScratchFile('foo/BUILD', [
+        'java_test(',
+        '  name = "foo_test",',
+        '  srcs = ["TestFoo.java"],',
+        '  main_class = "TestFoo",',
+        '  use_testrunner = 0,',
+        '  data = ["//bar:bar.txt"],',
+        ')',
+    ])
+    self.ScratchFile(
+        'foo/TestFoo.java', [
+            'public class TestFoo {',
+            'public static void main(String[] args) {',
+            'System.out.println("hello java test");',
+            '}',
+            '}',
+        ],
+        executable=True)
+    self.ScratchFile('bar/BUILD', ['exports_files(["bar.txt"])'])
+    self.ScratchFile('bar/bar.txt', ['hello'])
+
+    # Test.
+    # TODO: re-enable when I can make Java work.
+    #exit_code, stdout, stderr = self._RunRemoteBazel(
+    #    ['test', '--test_output=all', '//foo:foo_test'])
+    #self.AssertExitCode(exit_code, 0, stderr, stdout)
 
 
 if __name__ == '__main__':

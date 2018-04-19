@@ -48,12 +48,12 @@ BinaryLauncherBase::BinaryLauncherBase(
   for (int i = 0; i < argc; i++) {
     commandline_arguments.push_back(argv[i]);
   }
+  // Prefer to use the runfiles manifest, if it exists, but otherwise try to use
+  // the runfiles directory. On Windows, the manifest is used locally, and the
+  // runfiles directory is used remotely.
   if (manifest_file != "") {
     ParseManifestFile(&manifest_file_map, manifest_file);
-  } else if (runfiles_dir != "") {
-    // TODO: Should this branch be checking just for existence of argv[0]?
-    // TODO: Check whether this runfiles directory actually has anything in it.
-  } else {
+  } else if (runfiles_dir == "") {
     die("Couldn't find runfiles directory with files or runfiles manifest "
         "file.");
   }
@@ -130,9 +130,14 @@ void BinaryLauncherBase::ParseManifestFile(ManifestFileMap* manifest_file_map,
   }
 }
 
-// TODO: update this.
 string BinaryLauncherBase::Rlocation(const string& path,
                                      bool need_workspace_name) const {
+  // If the manifest file map is empty, then we're using the runfiles directory
+  // instead.
+  if (manifest_file_map.empty()) {
+    return runfiles_dir + "\\" + path;
+  }
+
   string query_path = path;
   if (need_workspace_name) {
     query_path = this->workspace_name + "/" + path;
