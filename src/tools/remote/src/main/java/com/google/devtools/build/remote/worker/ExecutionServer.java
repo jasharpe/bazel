@@ -302,7 +302,7 @@ final class ExecutionServer extends ExecutionImplBase {
 
   // Returns true if the OS being run on is Windows (or some close approximation thereof).
   private boolean isWindows() {
-    return File.separatorChar == '\\';
+    return System.getProperty("os.name").startsWith("Windows");
   }
 
   private boolean wasTimeout(long timeoutMillis, long wallTimeMillis) {
