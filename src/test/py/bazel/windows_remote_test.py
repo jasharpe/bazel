@@ -163,6 +163,29 @@ class WindowsRemoteTest(test_base.TestBase):
         ['test', '--test_output=all', '//foo:foo_test'])
     self.AssertExitCode(exit_code, 0, stderr, stdout)
 
+  def testPythonTestRunsRemotely(self):
+    self.ScratchFile('WORKSPACE')
+    self.ScratchFile('foo/BUILD', [
+        'py_test(',
+        '  name = "py_test",',
+        '  srcs = ["py_test.py"],',
+        '  data = ["//bar:bar.txt"],',
+        ')',
+    ])
+    self.ScratchFile(
+        'foo/py_test.java', [
+            'if __name__ == \'__main__\':',
+            '  print(\'Hello Python test!\')',
+        ],
+        executable=True)
+    self.ScratchFile('bar/BUILD', ['exports_files(["bar.txt"])'])
+    self.ScratchFile('bar/bar.txt', ['hello'])
+
+    # Test.
+    exit_code, stdout, stderr = self._RunRemoteBazel(
+        ['test', '--test_output=all', '//foo:py_test'])
+    self.AssertExitCode(exit_code, 0, stderr, stdout)
+
 
 if __name__ == '__main__':
   unittest.main()
