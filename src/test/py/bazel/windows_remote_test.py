@@ -159,10 +159,9 @@ class WindowsRemoteTest(test_base.TestBase):
     self.ScratchFile('bar/bar.txt', ['hello'])
 
     # Test.
-    # TODO: re-enable when I can make Java work.
-    #exit_code, stdout, stderr = self._RunRemoteBazel(
-    #    ['test', '--test_output=all', '//foo:foo_test'])
-    #self.AssertExitCode(exit_code, 0, stderr, stdout)
+    exit_code, stdout, stderr = self._RunRemoteBazel(
+        ['test', '--test_output=all', '//foo:foo_test'])
+    self.AssertExitCode(exit_code, 0, stderr, stdout)
 
 
 if __name__ == '__main__':

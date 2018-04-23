@@ -135,7 +135,13 @@ string BinaryLauncherBase::Rlocation(const string& path,
   // If the manifest file map is empty, then we're using the runfiles directory
   // instead.
   if (manifest_file_map.empty()) {
-    return runfiles_dir + "\\" + path;
+    string query_path = runfiles_dir;
+    if (need_workspace_name) {
+      query_path += "/" + this->workspace_name;
+    }
+    query_path += "/" + path;
+    printf("%s\n", query_path.c_str());
+    return query_path;
   }
 
   string query_path = path;
