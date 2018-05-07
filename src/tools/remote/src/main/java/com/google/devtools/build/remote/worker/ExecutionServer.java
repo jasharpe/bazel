@@ -202,47 +202,116 @@ final class ExecutionServer extends ExecutionImplBase {
       outputs.add(file);
     }
 
-    // TODO(ulfjack): This is basically a copy of LocalSpawnRunner. Ideally, we'd use that
-    // implementation instead of copying it.
-    Command cmd =
-        getCommand(
-            action,
-            command.getArgumentsList(),
-            getEnvironmentVariables(command),
-            execRoot.getPathString());
     long startTime = System.currentTimeMillis();
     CommandResult cmdResult = null;
+    String container = dockerContainer(action);
+    Map<String, String> environmentVariables =
+                  getEnvironmentVariables(command);
+    if (container != null && isWindows()) {
+      // Special handling for Docker on Windows, since some container setup and teardown is
+      // required.
+      String pathString = execRoot.getPathString();
+      final String containerName = UUID.randomUUID().toString();
+      String dockerPathString = pathString + "-docker";
+      String workDir = "C:\\1234";
 
-    FutureCommandResult futureCmdResult = null;
-    synchronized (lock) {
-      // Linux does not provide a safe API for a multi-threaded program to fork a subprocess.
-      // Consider the case where two threads both write an executable file and then try to execute
-      // it. It can happen that the first thread writes its executable file, with the file
-      // descriptor still being open when the second thread forks, with the fork inheriting a copy
-      // of the file descriptor. Then the first thread closes the original file descriptor, and
-      // proceeds to execute the file. At that point Linux sees an open file descriptor to the file
-      // and returns ETXTBSY (Text file busy) as an error. This race is inherent in the fork / exec
-      // duality, with fork always inheriting a copy of the file descriptor table; if there was a
-      // way to fork without copying the entire file descriptor table (e.g., only copy specific
-      // entries), we could avoid this race.
-      //
-      // I was able to reproduce this problem reliably by running significantly more threads than
-      // there are CPU cores on my workstation - the more threads the more likely it happens.
-      //
-      // As a workaround, we put a synchronized block around the fork.
-      try {
-        futureCmdResult = cmd.executeAsync();
-      } catch (CommandException e) {
-        Throwables.throwIfInstanceOf(e.getCause(), IOException.class);
-      }
-    }
+      logger.log(INFO, "run");
+      CommandResult runResult =
+          runCommand(
+              new Command(
+                  new String[] {
+                    "docker",
+                    "run",
+                    "-d",
+                    "--name",
+                    containerName,
+                    "-v",
+                    pathString + ":" + dockerPathString,
+                    "-w",
+                    workDir,
+                    container,
+                    "ping",
+                    "-n",
+                    "3600",
+                    "127.0.0.1",
+                  }));
+      printResults(runResult);
 
-    if (futureCmdResult != null) {
-      try {
-        cmdResult = futureCmdResult.get();
-      } catch (AbnormalTerminationException e) {
-        cmdResult = e.getResult();
-      }
+      /*logger.log(INFO, "pre1");
+      CommandResult preResult =
+          runCommand(
+              new Command(
+                  new String[] {
+                    "docker",
+                    "exec",
+                    containerName,
+                    "mkdir",
+                    workDir,
+                  }));
+      printResults(preResult);*/
+
+      logger.log(INFO, "pre2");
+      CommandResult preResult =
+          runCommand(
+              new Command(
+                  new String[] {
+                    "docker",
+                    "exec",
+                    containerName,
+                    "xcopy",
+                    "/O",
+                    "/X",
+                    "/E",
+                    "/H",
+                    "/K",
+                    dockerPathString.replaceAll("/", "\\\\"),
+                    workDir,
+                  }));
+      printResults(preResult);
+
+
+      logger.log(INFO, "cmd");
+      cmdResult =
+          runCommand(
+              getWindowsDockerCommand(
+                  command.getArgumentsList(),
+                  environmentVariables,
+                  containerName,
+                  pathString,
+                  workDir));
+      printResults(cmdResult);
+
+      logger.log(INFO, "post");
+      CommandResult postResult =
+          runCommand(
+              new Command(
+                  new String[] {
+                    "docker",
+                    "exec",
+                    containerName,
+                    "xcopy",
+                    workDir,
+                    dockerPathString.replaceAll("/", "\\\\"),
+                    "/E",
+                    "/H",
+                    "/C",
+                    "/Y"
+                  }));
+      printResults(postResult);
+
+      logger.log(INFO, "rm");
+      CommandResult rmResult = runCommand(new Command(new String[] {"docker", "rm", "--force", containerName}));
+      printResults(rmResult);
+    } else {
+      // TODO(ulfjack): This is basically a copy of LocalSpawnRunner. Ideally, we'd use that
+      // implementation instead of copying it.
+      cmdResult =
+          runCommand(
+              getCommand(
+                  action,
+                  command.getArgumentsList(),
+                  environmentVariables,
+                  execRoot.getPathString()));
     }
 
     long timeoutMillis =
@@ -298,6 +367,45 @@ final class ExecutionServer extends ExecutionImplBase {
       cache.setCachedActionResult(actionKey, finalResult);
     }
     return finalResult;
+  }
+
+  private CommandResult runCommand(Command cmd) throws IOException {
+    if (workerOptions.debug) {
+      logger.log(INFO, "Executing command:\n{0}", cmd.toDebugString());
+    }
+    FutureCommandResult futureCmdResult = null;
+    synchronized (lock) {
+      // Linux does not provide a safe API for a multi-threaded program to fork a subprocess.
+      // Consider the case where two threads both write an executable file and then try to execute
+      // it. It can happen that the first thread writes its executable file, with the file
+      // descriptor still being open when the second thread forks, with the fork inheriting a copy
+      // of the file descriptor. Then the first thread closes the original file descriptor, and
+      // proceeds to execute the file. At that point Linux sees an open file descriptor to the file
+      // and returns ETXTBSY (Text file busy) as an error. This race is inherent in the fork / exec
+      // duality, with fork always inheriting a copy of the file descriptor table; if there was a
+      // way to fork without copying the entire file descriptor table (e.g., only copy specific
+      // entries), we could avoid this race.
+      //
+      // I was able to reproduce this problem reliably by running significantly more threads than
+      // there are CPU cores on my workstation - the more threads the more likely it happens.
+      //
+      // As a workaround, we put a synchronized block around the fork.
+      try {
+        futureCmdResult = cmd.executeAsync();
+      } catch (CommandException e) {
+        Throwables.throwIfInstanceOf(e.getCause(), IOException.class);
+      }
+    }
+
+    if (futureCmdResult != null) {
+      try {
+        return futureCmdResult.get();
+      } catch (AbnormalTerminationException e) {
+        return e.getResult();
+      }
+    }
+
+    return null;
   }
 
   // Returns true if the OS being run on is Windows (or some close approximation thereof).
@@ -442,5 +550,37 @@ final class ExecutionServer extends ExecutionImplBase {
       return new Command(
           commandLineElements.toArray(new String[0]), environmentVariables, new File(pathString));
     }
+  }
+
+  private Command getWindowsDockerCommand(
+      List<String> commandLineElements,
+      Map<String, String> environmentVariables,
+      String containerName,
+      String pathString,
+      String workDir) throws StatusException {
+    ArrayList<String> newCommandLineElements = new ArrayList<>(commandLineElements.size());
+    newCommandLineElements.add("docker");
+    newCommandLineElements.add("exec");
+
+    for (Map.Entry<String, String> entry : environmentVariables.entrySet()) {
+      String key = entry.getKey();
+      String value = entry.getValue();
+
+      newCommandLineElements.add("-e");
+      newCommandLineElements.add(key + "=" + value);
+    }
+
+    newCommandLineElements.add(containerName);
+
+    newCommandLineElements.addAll(commandLineElements);
+
+    return new Command(newCommandLineElements.toArray(new String[0]), null, new File(pathString));
+  }
+
+  private void printResults(CommandResult res) {
+    byte[] stdout = res.getStdout();
+      byte[] stderr = res.getStderr();
+      logger.log(INFO, new String(stdout));
+      logger.log(INFO, new String(stderr));
   }
 }
