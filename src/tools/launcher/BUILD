@@ -30,6 +30,7 @@ cc_library(
     deps = [
         "//src/tools/launcher/util",
         "//src/tools/launcher/util:data_parser",
+        "//src/main/cpp/util:file",
     ],
 )
 

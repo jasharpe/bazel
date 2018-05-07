@@ -397,11 +397,12 @@ final class ExecutionServer extends ExecutionImplBase {
         }
       }
 
-      String dockerPathString = pathString + "-docker";
+      //String dockerPathString = pathString + "-docker";
+      String dockerPathString = "C:\\w";
       newCommandLineElements.add("-v");
       newCommandLineElements.add(pathString + ":" + dockerPathString);
-      newCommandLineElements.add("-w");
-      newCommandLineElements.add(dockerPathString);
+      //newCommandLineElements.add("-w");
+      //newCommandLineElements.add(dockerPathString);
 
       for (Map.Entry<String, String> entry : environmentVariables.entrySet()) {
         String key = entry.getKey();
@@ -415,7 +416,11 @@ final class ExecutionServer extends ExecutionImplBase {
 
       newCommandLineElements.addAll(commandLineElements);
 
-      return new Command(newCommandLineElements.toArray(new String[0]), null, new File(pathString));
+      Command command = new Command(newCommandLineElements.toArray(new String[0]), null, new File(pathString));
+      if (workerOptions.debug) {
+        logger.log(INFO, "Executing command in {0}:\n{1}", new Object[]{pathString, command.toDebugString()});
+      }
+      return command;
     } else if (sandboxPath != null) {
       // Run command with sandboxing.
       ArrayList<String> newCommandLineElements = new ArrayList<>(commandLineElements.size());
