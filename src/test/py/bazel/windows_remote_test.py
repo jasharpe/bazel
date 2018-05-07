@@ -164,9 +164,11 @@ class WindowsRemoteTest(test_base.TestBase):
     self.AssertExitCode(exit_code, 0, stderr, stdout)
 
   # Exercises absolute path handling in Rlocation.
+  # This depends on there being a Java installation to c:\openjdk.
   def testJavaTestWithRuntimeRunsRemotely(self):
     self.ScratchFile('WORKSPACE')
     self.ScratchFile('foo/BUILD', [
+        'package(default_visibility = ["//visibility:public"])',
         'java_test(',
         '  name = "foo_test",',
         '  srcs = ["TestFoo.java"],',
