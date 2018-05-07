@@ -78,8 +78,6 @@ is_absolute "$RUNFILES_DIR" || RUNFILES_DIR="$PWD/$RUNFILES_DIR"
 is_absolute "$JAVA_RUNFILES" || JAVA_RUNFILES="$PWD/$JAVA_RUNFILES"
 is_absolute "$PYTHON_RUNFILES" || PYTHON_RUNFILES="$PWD/$PYTHON_RUNFILES"
 
-echo "-----------------------------------------------------------------------------"
-
 # Create directories for undeclared outputs and their annotations
 mkdir -p "$(dirname "$XML_OUTPUT_FILE")" \
     "$TEST_UNDECLARED_OUTPUTS_DIR" \
@@ -87,7 +85,6 @@ mkdir -p "$(dirname "$XML_OUTPUT_FILE")" \
 
 # Create the test temp directory, which may not exist on the remote host when
 # doing a remote build.
-echo "$TEST_TMPDIR"
 mkdir -p "$TEST_TMPDIR"
 
 # Unexport environment variables related to undeclared test outputs that are
@@ -149,8 +146,6 @@ fi
 if [[ -z "$no_echo" ]]; then
   echo "-----------------------------------------------------------------------------"
 fi
-
-echo "1"
 
 function encode_output_file {
   if [ -f "$1" ]; then
@@ -231,19 +226,12 @@ pid=$!
 has_tail=true
 tail -fq --pid $pid -s 0.001 /dev/null &> /dev/null || has_tail=false
 
-echo "about to run"
-# Awkward reversed NO_SUBSHELL condition so that the default is to use subshell
-# if available.
-if [ "$NO_SUBSHELL" != true ] && [ "$has_tail" == true ] && [  -z "$no_echo" ]; then
+if [ "$has_tail" == true ] && [  -z "$no_echo" ]; then
   touch "${XML_OUTPUT_FILE}.log"
   if [ -z "$COVERAGE_DIR" ]; then
-    echo "wtf3"
-    echo "${TEST_PATH}"
-    echo "${XML_OUTPUT_FILE}"
     ("${TEST_PATH}" "$@" &>"${XML_OUTPUT_FILE}.log") &
     pid=$!
   else
-    echo "wtf 2"
     ("$1" "$TEST_PATH" "${@:3}" &> "${XML_OUTPUT_FILE}.log") &
     pid=$!
   fi
@@ -252,14 +240,11 @@ if [ "$NO_SUBSHELL" != true ] && [ "$has_tail" == true ] && [  -z "$no_echo" ]; 
   exitCode=$?
 else
   if [ -z "$COVERAGE_DIR" ]; then
-    echo "this one?"
     "${TEST_PATH}" "$@" 2> >(tee -a "${XML_OUTPUT_FILE}.log" >&2) 1> >(tee -a "${XML_OUTPUT_FILE}.log") 2>&1 || exitCode=$?
   else
-    echo "wtf?"
     "$1" "$TEST_PATH" "${@:3}" 2> >(tee -a "${XML_OUTPUT_FILE}.log" >&2) 1> >(tee -a "${XML_OUTPUT_FILE}.log") 2>&1 || exitCode=$?
   fi
 fi
-echo "after run"
 
 for signal in $signals; do
   trap - ${signal}
