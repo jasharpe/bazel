@@ -32,6 +32,11 @@ function is_absolute {
   [[ "$1" = /* ]] || [[ "$1" =~ ^[a-zA-Z]:[/\\].* ]]
 }
 
+# The original execution root. Usually this script changes directory into the
+# runfiles directory, so using $PWD is not a reliable way to find the execution
+# root.
+EXEC_ROOT="$PWD"
+
 # Bazel sets some environment vars to relative paths to improve caching and
 # support remote execution, where the absolute path may not be known to Bazel.
 # Convert them to absolute paths here before running the actual test.
@@ -211,6 +216,14 @@ if is_absolute "$EXE"; then
   TEST_PATH="$EXE"
 else
   TEST_PATH="$(rlocation $TEST_WORKSPACE/$EXE)"
+fi
+
+# Use --test_env=TEST_SHORT_EXEC_PATH=true to activate this code path to
+# workaround TODO when executing remote tests on Windows.
+# TODO(jsharpe): Remove this workaround once the underlying issue is fixed.
+if [ ! -z "$TEST_SHORT_EXEC_PATH" ]; then
+  ln -s "${TEST_PATH}" "$EXEC_ROOT/t"
+  TEST_PATH="$EXEC_ROOT/t"
 fi
 
 exitCode=0
