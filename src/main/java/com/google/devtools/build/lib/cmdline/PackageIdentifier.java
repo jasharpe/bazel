@@ -133,6 +133,7 @@ public final class PackageIdentifier
       repo = RepositoryName.DEFAULT_REPOSITORY;
       packageName = input;
     }
+    packageName = packageName.replaceAll("\\\\", "/");
 
     String error = RepositoryName.validate(repo);
     if (error != null) {

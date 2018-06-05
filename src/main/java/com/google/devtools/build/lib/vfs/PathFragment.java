@@ -166,7 +166,7 @@ public final class PathFragment
       return this;
     }
     // This is an absolute path, simply return it
-    if (otherDriveStrLength > 0) {
+    if (otherDriveStrLength > 0 || other.startsWith("C:")) {
       String normalizedPath =
           normalizationLevel != OsPathPolicy.NORMALIZED
               ? OS.normalize(other, normalizationLevel)

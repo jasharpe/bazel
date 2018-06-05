@@ -125,7 +125,7 @@ public class CommandFailureUtils {
   }
 
   private static final DescribeCommandImpl describeCommandImpl =
-      OS.getCurrent() == OS.WINDOWS ? new WindowsDescribeCommandImpl()
+      (true || OS.getCurrent() == OS.WINDOWS) ? new WindowsDescribeCommandImpl()
                                     : new LinuxDescribeCommandImpl();
 
   private CommandFailureUtils() {} // Prevent instantiation.

@@ -143,7 +143,7 @@ public abstract class TestStrategy implements TestActionContext {
     // TODO(ulfjack): This is incorrect for remote execution, where we need to consider the target
     // configuration, not the machine Bazel happens to run on. Change this to something like:
     // testAction.getConfiguration().getTargetOS() == OS.WINDOWS
-    if (OS.getCurrent() == OS.WINDOWS) {
+    if (true /*OS.getCurrent() == OS.WINDOWS*/) {
       args.add(testAction.getShExecutable().getPathString());
       args.add("-c");
       args.add("$0 $*");
