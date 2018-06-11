@@ -222,8 +222,12 @@ fi
 # workaround TODO when executing remote tests on Windows.
 # TODO(jsharpe): Remove this workaround once the underlying issue is fixed.
 if [ ! -z "$TEST_SHORT_EXEC_PATH" ]; then
-  ln -s "${TEST_PATH}" "$EXEC_ROOT/t"
-  TEST_PATH="$EXEC_ROOT/t"
+  QUALIFIER=0
+  while [[ -e "${EXEC_ROOT}/t${QUALIFIER}" ]]; do
+    ((QUALIFIER++))
+  done
+  ln -s "${TEST_PATH}" "${EXEC_ROOT}/t${QUALIFIER}"
+  TEST_PATH="$EXEC_ROOT/t${QUALIFIER}"
 fi
 
 exitCode=0
