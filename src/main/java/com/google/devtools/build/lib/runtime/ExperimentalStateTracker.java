@@ -40,10 +40,17 @@ import com.google.devtools.build.lib.util.io.AnsiTerminalWriter;
 import com.google.devtools.build.lib.util.io.PositionAwareAnsiTerminalWriter;
 import com.google.devtools.build.lib.view.test.TestStatus.BlazeTestStatus;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -84,6 +91,7 @@ class ExperimentalStateTracker {
   private final Map<String, String> actionStatus;
   // Time the action entered its current status.
   private final Map<String, Long> actionNanoStartTimes;
+  private final List<Pair<Long, Pair<Integer, String>>> parallelActions;
   // As sometimes the executing stategy might be sent before the action started,
   // we have to keep track of a small number of executing, but not yet started
   // actions.
@@ -122,6 +130,7 @@ class ExperimentalStateTracker {
     this.executingActions = new ArrayDeque<>();
     this.actions = new TreeMap<>();
     this.actionNanoStartTimes = new TreeMap<>();
+    this.parallelActions = new ArrayList<>();
     this.actionStatus = new TreeMap<>();
     this.testActions = new TreeMap<>();
     this.runningDownloads = new ArrayDeque<>();
@@ -214,6 +223,34 @@ class ExperimentalStateTracker {
       status = "FAILED";
       additionalMessage = additionalInfo + "Build did NOT complete successfully";
     }
+
+    /*Collections.sort(parallelActions, new Comparator<Pair<Long, Pair<Integer, String>>>(){
+      @Override
+      public int compare(Pair<Long, Pair<Integer, String>> lhs, Pair<Long, Pair<Integer, String>> rhs) {
+          // -1 - less than, 1 - greater than, 0 - equal, all inversed for descending
+          return lhs.first > rhs.first ? 1 : (lhs.first < rhs.first) ? -1 : 0;
+      }
+    });*/
+    try {
+      StringBuilder sb = new StringBuilder();
+      if (parallelActions.size() == 0) {
+        return;
+      }
+      long f = parallelActions.get(0).first;
+      for (int i = 0; i < parallelActions.size(); i++) {
+        Pair<Long, Pair<Integer, String>> p = parallelActions.get(i);
+        if (i > 0) {
+          Pair<Long, Pair<Integer, String>> last = parallelActions.get(i-1);
+          sb.append((p.first - f) + "," + last.second.first + "," + last.second.second + "\n");
+        }
+        sb.append((p.first - f) + "," + p.second.first + "," + p.second.second + "\n");
+      }
+      try (PrintStream out = new PrintStream(new FileOutputStream("/tmp/build_actions.csv"))) {
+        out.print(sb.toString());
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   void buildComplete(BuildCompleteEvent event) {
@@ -253,6 +290,7 @@ class ExperimentalStateTracker {
       nonExecutingActions.addLast(name);
     }
     actions.put(name, action);
+    parallelActions.add(new Pair<Long, Pair<Integer, String>>(clock.nanoTime(), new Pair<Integer, String>(totalNumberOfActions(), name)));
     actionNanoStartTimes.put(name, nanoStartTime);
     if (action.getOwner() != null) {
       Label owner = action.getOwner().getLabel();
@@ -298,6 +336,7 @@ class ExperimentalStateTracker {
     executingActions.remove(name);
     nonExecutingActions.remove(name);
     actions.remove(name);
+    parallelActions.add(new Pair<Long, Pair<Integer, String>>(clock.nanoTime(), new Pair<Integer, String>(totalNumberOfActions(), name)));
     actionNanoStartTimes.remove(name);
     actionStatus.remove(name);
 
